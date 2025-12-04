@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de IA - Verificador de Autenticidad</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>AI Verifier</h1>
+            <p>Sube tu archivo para detectar si fue generado por Inteligencia Artificial.</p>
+        </header>
+
+        <main>
+            <div class="tabs">
+                <button class="tab active" onclick="setMode('image')">Imagen</button>
+                <button class="tab" onclick="setMode('text')">Texto</button>
+                <button class="tab" onclick="setMode('audio')">Audio</button>
+                <button class="tab" onclick="setMode('video')">Video</button>
+            </div>
+
+            <div class="upload-area" id="drop-zone">
+                <div class="icon">📁</div>
+                <p>Arrastra tu imagen aquí o haz clic para subir</p>
+                <input type="file" id="file-input" hidden>
+            </div>
+
+            <button id="analyze-btn" class="btn-primary" disabled>Analizar Archivo</button>
+
+            <div id="result-container" class="result-box hidden">
+                <div class="loader hidden" id="loader">Analizando...</div>
+                <div id="result-content">
+                    <span id="label-score">Probabilidad de IA:</span>
+                    <h2 id="score-display">--%</h2>
+                    <p id="details-msg" class="details"></p>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 AI Verifier - Protege tu realidad</p>
+        </footer>
+    </div>
+
+    <script src="assets/js/main.js"></script>
+</body>
+</html>
