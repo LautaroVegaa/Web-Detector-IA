@@ -1,0 +1,25 @@
+# --- SEGURIDAD (CRÍTICO) ---
+# Ignorar las claves reales
+assets/js/config.js
+.env
+.env.*
+
+# --- SUPABASE ---
+# Ignorar carpeta temporal (la veo en tu imagen)
+supabase/.temp/
+
+# --- SISTEMA OPERATIVO ---
+# Archivos basura de Mac y Windows
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- DEPENDENCIAS ---
+# Si alguna vez instalas algo con npm, esto no se sube
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# --- EDITOR (VS CODE) ---
+# Opcional: A veces es mejor no subir tu config personal del editor
+.vscode/

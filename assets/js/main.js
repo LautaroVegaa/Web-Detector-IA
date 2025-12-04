@@ -1,7 +1,6 @@
 // 1. CONFIGURACIÓN DE SUPABASE
-// IMPORTANTE: Reemplaza estos valores con los de tu proyecto real en Supabase
-const SUPABASE_URL = 'https://ciofzurzkmyhaubcocsr.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpb2Z6dXJ6a215aGF1YmNvY3NyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2NDE1ODIsImV4cCI6MjA4MDIxNzU4Mn0.LuElDx3Y95pbOYmkuPPMbPB-Vq7fddRzDfQ-Om7TF3k';
+const SUPABASE_URL = CONFIG.SUPABASE_URL;
+const SUPABASE_KEY = CONFIG.SUPABASE_KEY;
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -14,69 +13,121 @@ const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
 const analyzeBtn = document.getElementById('analyze-btn');
 const tabs = document.querySelectorAll('.tab');
+const resultBox = document.getElementById('result-container');
+const loader = document.getElementById('loader');
+const content = document.getElementById('result-content');
+const scoreDisplay = document.getElementById('score-display');
+const detailsMsg = document.getElementById('details-msg');
 
-// 2. LÓGICA DE INTERFAZ
+// 2. LÓGICA DE INTERFAZ (Tabs y selección)
 function setMode(mode) {
     currentMode = mode;
-    // Actualizar estilo de tabs
     tabs.forEach(t => t.classList.remove('active'));
-    // Encontrar el botón que fue clickeado (buscamos en el evento global o pasamos 'this' si refactorizamos, 
-    // pero para mantenerlo simple iteramos por texto o usamos event.target en el HTML inline)
+    // Busca el tab correcto y lo activa
     const clickedTab = Array.from(tabs).find(t => t.innerText.toLowerCase().includes(mode === 'image' ? 'imagen' : mode));
     if(clickedTab) clickedTab.classList.add('active');
     
-    // Resetear input y textos
+    // Resetear
     selectedFile = null;
-    fileInput.value = ''; // Limpiar el input file interno
+    fileInput.value = '';
     analyzeBtn.classList.remove('ready');
     analyzeBtn.disabled = true;
-    
-    // Texto dinámico según modo
-    const modeName = mode === 'image' ? 'imagen' : mode;
-    document.querySelector('.upload-area p').innerText = `Arrastra tu ${modeName} aquí o haz clic`;
-    document.getElementById('result-container').classList.add('hidden');
+    document.querySelector('.upload-area p').innerText = `Arrastra tu ${mode === 'image' ? 'imagen' : mode} aquí`;
+    resultBox.classList.add('hidden');
 }
 
-// Click en zona de carga abre el selector de archivos
 dropZone.addEventListener('click', () => fileInput.click());
 
-// Cuando se selecciona un archivo
 fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
         selectedFile = e.target.files[0];
-        handleFileSelection(selectedFile);
+        document.querySelector('.upload-area p').innerText = `Archivo listo: ${selectedFile.name}`;
+        analyzeBtn.classList.add('ready');
+        analyzeBtn.disabled = false;
     }
 });
 
-function handleFileSelection(file) {
-    // Feedback visual simple
-    document.querySelector('.upload-area p').innerText = `Archivo listo: ${file.name}`;
-    
-    // Habilitar botón
-    analyzeBtn.classList.add('ready');
-    analyzeBtn.disabled = false;
-}
-
-// 3. LÓGICA DE ANÁLISIS (Placeholder)
+// 3. LÓGICA PRINCIPAL: SUBIR Y ANALIZAR
 analyzeBtn.addEventListener('click', async () => {
-    const resultBox = document.getElementById('result-container');
-    const loader = document.getElementById('loader');
-    const content = document.getElementById('result-content');
-    
-    // Mostrar estado de carga
+    if (!selectedFile) return;
+
+    // Mostrar UI de carga
     resultBox.classList.remove('hidden');
     loader.classList.remove('hidden');
     content.style.display = 'none';
 
-    console.log(`Enviando ${currentMode} a analizar:`, selectedFile);
+    try {
+        // A. Subir imagen a Supabase Storage
+        // Usamos timestamp para evitar nombres duplicados
+        const fileName = `${Date.now()}_${selectedFile.name.replace(/\s/g, '_')}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('uploads')
+            .upload(fileName, selectedFile);
 
-    // --- AQUI INTEGRARÁS LA FUNCTION DE SUPABASE LUEGO ---
-    
-    // Simulación de respuesta (Fake)
-    setTimeout(() => {
+        if (uploadError) throw uploadError;
+
+        // B. Obtener URL Pública (necesaria para que Sightengine la lea)
+        const { data: { publicUrl } } = supabase
+            .storage
+            .from('uploads')
+            .getPublicUrl(fileName);
+
+        console.log("Archivo subido, URL:", publicUrl);
+
+        // C. Llamar a nuestra Edge Function (Tu Backend)
+        const { data: aiResponse, error: fnError } = await supabase.functions.invoke('detectar-ia', {
+            body: { 
+                fileUrl: publicUrl, 
+                type: currentMode 
+            }
+        });
+
+        if (fnError) throw fnError;
+
+        console.log("Respuesta de Sightengine:", aiResponse);
+
+        // D. Interpretar resultado (Lógica adaptada para Sightengine)
+        let score = 0;
+        
+        // El backend ahora nos devuelve un objeto limpio con 'score'
+        if (aiResponse.score !== undefined) {
+            score = aiResponse.score;
+        } 
+        // Por si acaso, soporte para respuesta cruda
+        else if (aiResponse.type && aiResponse.type.ai_generated) {
+            score = aiResponse.type.ai_generated;
+        }
+
+        // E. Mostrar Resultado en pantalla
         loader.classList.add('hidden');
         content.style.display = 'block';
-        document.getElementById('score-display').innerText = "98.5%";
-        document.getElementById('details-msg').innerText = "Alta probabilidad de ser generado por IA";
-    }, 2000);
+
+        const percentage = (score * 100).toFixed(1);
+        scoreDisplay.innerText = `${percentage}%`;
+        
+        if (score > 0.8) {
+            scoreDisplay.style.color = '#ef4444'; // Rojo - Alta probabilidad
+            detailsMsg.innerText = "⚠️ Muy alta probabilidad de ser generado por IA.";
+        } else if (score > 0.5) {
+            scoreDisplay.style.color = '#f59e0b'; // Naranja - Duda
+            detailsMsg.innerText = "Posiblemente generado por IA o muy editado.";
+        } else {
+            scoreDisplay.style.color = '#10b981'; // Verde - Humano
+            detailsMsg.innerText = "Parece ser auténtico (Humano).";
+        }
+
+    } catch (error) {
+        console.error("Error completo:", error);
+        loader.classList.add('hidden');
+        content.style.display = 'block';
+        scoreDisplay.innerText = "Error";
+        scoreDisplay.style.color = 'white';
+        detailsMsg.innerText = "Ocurrió un error. Revisa la consola (F12) para ver detalles.";
+        
+        if (error.message && error.message.includes("row-level security")) {
+            alert("Error de permisos: Revisa las Policies en Supabase Storage.");
+        }
+    }
 });
